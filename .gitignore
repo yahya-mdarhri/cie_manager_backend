@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.manifest
+*.spec
+
+# Django
+*.log
+*.pot
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+
+# Virtual environment
+venv/
+ENV/
+env/
+.env
+.venv/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Testing
+.coverage
+.tox/
+htmlcov/
+pytest_cache/
+
+# Migrations (optional – keep if you want reproducible DB state in VCS)
+**/migrations/
+# !**/migrations/__init__.py
