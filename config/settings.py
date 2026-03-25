@@ -165,7 +165,6 @@ SIMPLE_JWT = {
 INTERNAL_IPS = [
     "127.0.0.1",
     "localhost",
-	"http://192.168.1.171:12001"
 ]
 
 # === Graph Models ===
