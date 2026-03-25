@@ -65,6 +65,31 @@ class ListDepartmentView(viewsets.ViewSet):
 			status=status.HTTP_403_FORBIDDEN
 		)
 
+
+class ListClientsView(viewsets.ViewSet):
+
+	def list(self, request):
+		user = request.user
+		if not has_permission(user):
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+
+		clients_queryset = (
+			Project.objects
+			.exclude(client_name__isnull=True)
+			.exclude(client_name="")
+			.values_list("client_name", flat=True)
+			.distinct()
+			.order_by("client_name")
+		)
+
+		paginator = CustomPagination()
+		page = paginator.paginate_queryset(list(clients_queryset), request)
+		results = [{"name": client_name} for client_name in page]
+		return paginator.get_paginated_response(results)
+
 class SetDepartmentManagerView(viewsets.ViewSet):
 
 	def update(self, request, dep=None):
