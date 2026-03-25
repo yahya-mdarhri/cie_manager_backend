@@ -25,16 +25,18 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=Csv())
 
 # === Cloudflare R2 Configuration ===
-AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
-AWS_S3_ENDPOINT_URL = config('AWS_S3_ENDPOINT_URL')
-AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='auto')
-AWS_S3_ADDRESSING_STYLE = config('AWS_S3_ADDRESSING_STYLE', default='path')
-AWS_QUERYSTRING_AUTH = True
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-storages._storages.clear()
-storages._storages["default"] = S3Boto3Storage()
+USE_S3 = config('USE_S3', default=False, cast=bool)
+if USE_S3:
+	AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+	AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+	AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+	AWS_S3_ENDPOINT_URL = config('AWS_S3_ENDPOINT_URL')
+	AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='auto')
+	AWS_S3_ADDRESSING_STYLE = config('AWS_S3_ADDRESSING_STYLE', default='path')
+	AWS_QUERYSTRING_AUTH = True
+	DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+	storages._storages.clear()
+	storages._storages["default"] = S3Boto3Storage()
 
 # === APPLICATIONS ===
 INSTALLED_APPS = [
@@ -124,6 +126,8 @@ AUTH_USER_MODEL = 'accounts.User'
 
 # === STATIC FILES ===
 STATIC_URL = 'static/'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'mediafiles'
 
 # === DEFAULT PRIMARY KEY FIELD TYPE ===
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -175,8 +179,8 @@ CORS_ALLOW_CREDENTIALS = True
 # Allow origins from env (comma-separated), plus local dev by default
 _frontend_origins = config('FRONTEND_ORIGINS', default='', cast=Csv())
 CORS_ALLOWED_ORIGINS = [
-	"http://localhost:3000",
-	"http://127.0.0.1:3000",
+	"http://localhost:12000",
+	"http://192.168.1.171:12000",
 ] + _frontend_origins
 
 # Optional regex support for dynamic preview domains (e.g., Vercel)
@@ -185,8 +189,8 @@ if _cors_regexes:
 	CORS_ALLOWED_ORIGIN_REGEXES = _cors_regexes
 
 CSRF_TRUSTED_ORIGINS = [
-	"http://localhost:3000",
-	"http://127.0.0.1:3000",
+	"http://localhost:12000",
+	"http://192.168.1.171:12000",
 ] + [o.replace('http://', 'http://').replace('https://', 'https://') for o in _frontend_origins]
 
 # Cross-site cookies for frontend on different domain
