@@ -7,7 +7,6 @@ from .views import ListActionLogsView, GetActionLogView
 from .views import ListProjectStepsView, CreateProjectStepView, GetProjectStepView, ExecuteProjectStepView
 from .views import ListAllProjectView, ListAllExpensesView, ListAllPaymentsReceivedView
 from .views import DirectorDashboardView, DepartmentDashboardView
-from .views import ListClientsView
 
 
 urlpatterns = [
@@ -15,11 +14,6 @@ urlpatterns = [
 		"departments/",
 		ListDepartmentView.as_view({'get': 'list'}),
 		name="departments"
-	),
-	path(
-		"clients/",
-		ListClientsView.as_view({'get': 'list'}),
-		name="clients"
 	),
 	path(
 		"departments/create/",
