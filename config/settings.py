@@ -180,7 +180,7 @@ CORS_ALLOW_CREDENTIALS = True
 _frontend_origins = config('FRONTEND_ORIGINS', default='', cast=Csv())
 CORS_ALLOWED_ORIGINS = [
 	"http://localhost:12000",
-	"http://192.168.1.171:12000",
+	"http://192.168.1.171:12001",
 ] + _frontend_origins
 
 # Optional regex support for dynamic preview domains (e.g., Vercel)
@@ -189,8 +189,8 @@ if _cors_regexes:
 	CORS_ALLOWED_ORIGIN_REGEXES = _cors_regexes
 
 CSRF_TRUSTED_ORIGINS = [
-	"http://localhost:12000",
-	"http://192.168.1.171:12000",
+	"http://localhost:12001",
+	"http://192.168.1.171:12001",
 ] + [o.replace('http://', 'http://').replace('https://', 'https://') for o in _frontend_origins]
 
 # Cross-site cookies for frontend on different domain
