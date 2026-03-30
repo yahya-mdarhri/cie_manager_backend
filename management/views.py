@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from django.db.models import Q, Sum
+from django.utils import timezone
 
 from accounts.permissions import has_permission
 from accounts.serializers import UserSerializer
@@ -1363,39 +1364,132 @@ class DirectorDashboardView(viewsets.ViewSet):
 				NO_ACCESS_TO_RESOURCE,
 				status=status.HTTP_403_FORBIDDEN
 			)
-		# Calculate dashboard metrics
-		total_projects = Project.objects.count()
-		total_budget = sum(project.total_budget for project in Project.objects.all())
-		committed_budget = sum(project.committed_budget for project in Project.objects.all())
+
+		today = timezone.now().date()
+		projects = Project.objects.select_related("department", "client").all()
+
+		total_projects = projects.count()
+		total_budget = sum((project.total_budget or 0) for project in projects)
+		committed_budget = sum((project.committed_budget or 0) for project in projects)
 		remaining_budget = total_budget - committed_budget
 
 		status_counts = {
-			'in_progress': Project.objects.filter(status=Project.Status.IN_PROGRESS).count(),
-			'on_hold': Project.objects.filter(status=Project.Status.PAUSED).count(),
-			'completed': Project.objects.filter(status=Project.Status.COMPLETED).count(),
-			'canceled': Project.objects.filter(status=Project.Status.CANCELLED).count(),
+			"in_progress": projects.filter(status=Project.Status.IN_PROGRESS).count(),
+			"on_hold": projects.filter(status=Project.Status.PAUSED).count(),
+			"completed": projects.filter(status=Project.Status.COMPLETED).count(),
+			"canceled": projects.filter(status=Project.Status.CANCELLED).count(),
 		}
+
+		total_collected = 0
+		total_spent = 0
+		overdue_projects_count = 0
+		completed_unpaid_count = 0
+		overdue_unpaid_count = 0
+		overdue_unpaid_amount = 0
+
+		alerts = []
+		clients_exposure = {}
+
+		for project in projects:
+			collected = project.payments_received.aggregate(total=Sum("amount")).get("total") or 0
+			spent = project.expenses.aggregate(total=Sum("amount")).get("total") or 0
+			remaining_to_collect = max((project.total_budget or 0) - collected, 0)
+
+			total_collected += collected
+			total_spent += spent
+
+			is_overdue = project.end_date and project.end_date < today and project.status != Project.Status.COMPLETED
+			is_completed_unpaid = project.status == Project.Status.COMPLETED and remaining_to_collect > 0
+			is_overdue_unpaid = project.end_date and project.end_date < today and remaining_to_collect > 0
+
+			if is_overdue:
+				overdue_projects_count += 1
+			if is_completed_unpaid:
+				completed_unpaid_count += 1
+			if is_overdue_unpaid:
+				overdue_unpaid_count += 1
+				overdue_unpaid_amount += remaining_to_collect
+
+			if is_overdue or is_completed_unpaid:
+				days_overdue = (today - project.end_date).days if project.end_date and project.end_date < today else 0
+				alerts.append(
+					{
+						"project_id": project.id,
+						"project_code": project.project_code,
+						"project_name": project.project_name,
+						"department": project.department.name if project.department else None,
+						"status": project.status,
+						"end_date": str(project.end_date) if project.end_date else None,
+						"days_overdue": days_overdue,
+						"total_budget": float(project.total_budget or 0),
+						"total_collected": float(collected),
+						"total_spent": float(spent),
+						"remaining_to_collect": float(remaining_to_collect),
+						"client": project.client.name if getattr(project, "client", None) else project.client_name,
+					}
+				)
+
+			client_label = project.client.name if getattr(project, "client", None) else (project.client_name or "N/A")
+			if client_label not in clients_exposure:
+				clients_exposure[client_label] = {
+					"client": client_label,
+					"projects_count": 0,
+					"budget": 0,
+					"collected": 0,
+					"remaining_to_collect": 0,
+				}
+			clients_exposure[client_label]["projects_count"] += 1
+			clients_exposure[client_label]["budget"] += float(project.total_budget or 0)
+			clients_exposure[client_label]["collected"] += float(collected)
+			clients_exposure[client_label]["remaining_to_collect"] += float(remaining_to_collect)
+
+		alerts = sorted(
+			alerts,
+			key=lambda item: (item["remaining_to_collect"], item["days_overdue"]),
+			reverse=True,
+		)[:20]
+
+		top_clients_exposure = sorted(
+			clients_exposure.values(),
+			key=lambda item: item["remaining_to_collect"],
+			reverse=True,
+		)[:10]
+
+		collection_rate = float((total_collected / total_budget) * 100) if total_budget else 0.0
+		margin_value = float(total_collected - total_spent)
 
 		dashboard_data = {
 			"active_projects": {
 				"number": total_projects,
-				"percentage_change": "+0%"  # Placeholder for percentage change logic
+				"percentage_change": "+0%"
 			},
 			"total_budget": {
 				"amount": f"{total_budget} MAD",
-				"percentage_change": "+0%"  # Placeholder for percentage change logic
+				"percentage_change": "+0%"
 			},
 			"committed_budget": {
 				"amount": f"{committed_budget} MAD",
-				"percentage_change": "+0%"  # Placeholder for percentage change logic
+				"percentage_change": "+0%"
 			},
 			"remaining_budget": {
 				"amount": f"{remaining_budget} MAD",
-				"percentage_change": "+0%"  # Placeholder for percentage change logic
+				"percentage_change": "+0%"
 			},
 			"projects_by_status": status_counts,
+			"kpis": {
+				"overdue_projects": overdue_projects_count,
+				"completed_unpaid_projects": completed_unpaid_count,
+				"overdue_unpaid_projects": overdue_unpaid_count,
+				"overdue_unpaid_amount": float(overdue_unpaid_amount),
+				"collection_rate_percent": round(collection_rate, 2),
+				"total_collected": float(total_collected),
+				"total_spent": float(total_spent),
+				"margin_value": round(margin_value, 2),
+			},
+			"projects_needing_attention": alerts,
+			"top_clients_exposure": top_clients_exposure,
 		}
-		
+
 		return Response(dashboard_data, status=status.HTTP_200_OK)
 
 class DepartmentDashboardView(viewsets.ViewSet):
