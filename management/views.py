@@ -135,6 +135,60 @@ def serialize_supplier_with_metrics(supplier):
 	supplier_data["total_expense"] = float(total_expense)
 	return supplier_data
 
+
+def normalize_amount(value):
+	if value is None:
+		return None
+	if isinstance(value, (int, float)):
+		return value
+	text = str(value).strip().replace(" ", "").replace(",", ".")
+	try:
+		return float(text)
+	except (TypeError, ValueError):
+		return None
+
+
+def normalize_expense_category(value):
+	if not value:
+		return value
+	key = str(value).strip().lower()
+	mapping = {
+		"personnel": Expense.Category.PERSONNEL,
+		"equipment": Expense.Category.EQUIPMENT,
+		"equipement": Expense.Category.EQUIPMENT,
+		"subcontracting": Expense.Category.SUBCONTRACTING,
+		"sous-traitance": Expense.Category.SUBCONTRACTING,
+		"mobility": Expense.Category.MOBILITY,
+		"mobilite": Expense.Category.MOBILITY,
+		"mobilité": Expense.Category.MOBILITY,
+		"material": Expense.Category.CONSUMABLES,
+		"materiel": Expense.Category.CONSUMABLES,
+		"matériel": Expense.Category.CONSUMABLES,
+		"consumables": Expense.Category.CONSUMABLES,
+		"consommables": Expense.Category.CONSUMABLES,
+		"other": Expense.Category.OTHER,
+		"autre": Expense.Category.OTHER,
+	}
+	return mapping.get(key, value)
+
+
+def normalize_payment_type(value):
+	if not value:
+		return PaymentReceived.PaymentType.BANK_TRANSFER
+	key = str(value).strip().lower()
+	mapping = {
+		"bank transfer": PaymentReceived.PaymentType.BANK_TRANSFER,
+		"transfer": PaymentReceived.PaymentType.BANK_TRANSFER,
+		"virement": PaymentReceived.PaymentType.BANK_TRANSFER,
+		"check": PaymentReceived.PaymentType.CHECK,
+		"cheque": PaymentReceived.PaymentType.CHECK,
+		"chèque": PaymentReceived.PaymentType.CHECK,
+		"cash": PaymentReceived.PaymentType.CASH,
+		"especes": PaymentReceived.PaymentType.CASH,
+		"espèces": PaymentReceived.PaymentType.CASH,
+	}
+	return mapping.get(key, value)
+
 def getDepartment(pk):
 	try:
 		return Department.objects.get(pk=pk)
@@ -579,6 +633,13 @@ class CreateProjectExpenseView(viewsets.ViewSet):
 					{"details": "Supplier not found."},
 					status=status.HTTP_404_NOT_FOUND
 				)
+		data["amount"] = normalize_amount(data.get("amount"))
+		data["category"] = normalize_expense_category(data.get("category"))
+		if data.get("amount") is None:
+			return Response(
+				{"details": "Amount is required and must be a valid number."},
+				status=status.HTTP_400_BAD_REQUEST
+			)
 		serializer = ExpenseSerializer(data=data)
 		if serializer.is_valid():
 			serializer.save(project=project)
@@ -734,6 +795,15 @@ class CreateProjectPaymentReceivedView(viewsets.ViewSet):
 					{"details": "Client not found."},
 					status=status.HTTP_404_NOT_FOUND
 				)
+		data["amount"] = normalize_amount(data.get("amount"))
+		data["payment_type"] = normalize_payment_type(data.get("payment_type"))
+		if not data.get("payment_reference"):
+			data["payment_reference"] = "REF"
+		if data.get("amount") is None:
+			return Response(
+				{"details": "Amount is required and must be a valid number."},
+				status=status.HTTP_400_BAD_REQUEST
+			)
 		serializer = PaymentReceivedSerializer(data=data)
 		if serializer.is_valid():
 			serializer.save(project=project)
