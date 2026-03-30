@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q, Sum
 
 from accounts.permissions import has_permission
+from accounts.serializers import UserSerializer
 from management.models import Department, Project, Expense, PaymentReceived, ActionLogs, ProjectSteps, Client, Supplier
 from management.pagination import CustomPagination
 from management.serializers import DepartmentSerializer, ProjectSerializer, ExpenseSerializer, PaymentReceivedSerializer, ActionLogsSerializer, ProjectStepsSerializer, ClientSerializer, SupplierSerializer
@@ -216,6 +217,20 @@ class SetDepartmentManagerView(viewsets.ViewSet):
 			{"details": "Department manager updated."},
 			status=status.HTTP_200_OK
 		)
+
+
+class ListDepartmentManagersView(viewsets.ViewSet):
+
+	def list(self, request, dep=None):
+		user = request.user
+		department, error_response = getDepartmentIfHasAccess(user, dep)
+		if error_response:
+			return error_response
+		managers = department.managers.filter(role=User.Role.DEPARTMENT_MANAGER)
+		paginator = get_paginator_with_requested_size(request)
+		managers = paginator.paginate_queryset(managers, request)
+		serializer = UserSerializer(managers, many=True)
+		return paginator.get_paginated_response(serializer.data)
 
 class GetDepartmentView(viewsets.ViewSet):
 
@@ -553,7 +568,18 @@ class CreateProjectExpenseView(viewsets.ViewSet):
 				status=status.HTTP_404_NOT_FOUND
 			)
 		# Create the expense
-		serializer = ExpenseSerializer(data=request.data)
+		data = request.data.copy()
+		supplier_ref = data.pop("supplier_ref", None)
+		if supplier_ref:
+			try:
+				supplier = Supplier.objects.get(pk=supplier_ref)
+				data["supplier"] = supplier.name
+			except Supplier.DoesNotExist:
+				return Response(
+					{"details": "Supplier not found."},
+					status=status.HTTP_404_NOT_FOUND
+				)
+		serializer = ExpenseSerializer(data=data)
 		if serializer.is_valid():
 			serializer.save(project=project)
 			return Response(
@@ -695,7 +721,20 @@ class CreateProjectPaymentReceivedView(viewsets.ViewSet):
 				status=status.HTTP_404_NOT_FOUND
 			)
 		# Create the payment received
-		serializer = PaymentReceivedSerializer(data=request.data)
+		data = request.data.copy()
+		client_ref = data.pop("client_ref", None)
+		if client_ref:
+			try:
+				client = Client.objects.get(pk=client_ref)
+				if not project.client_name:
+					project.client_name = client.name
+					project.save(update_fields=["client_name", "updated_at"])
+			except Client.DoesNotExist:
+				return Response(
+					{"details": "Client not found."},
+					status=status.HTTP_404_NOT_FOUND
+				)
+		serializer = PaymentReceivedSerializer(data=data)
 		if serializer.is_valid():
 			serializer.save(project=project)
 			return Response(

@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import ListDepartmentView, CreateDepartmentView, GetDepartmentView, SetDepartmentManagerView
+from .views import ListDepartmentManagersView
 from .views import ListProjectsView, CreateProjectView, GetProjectView
 from .views import ListProjectExpensesView, CreateProjectExpenseView, GetProjectExpenseView
 from .views import ListProjectPaymentsReceivedView, CreateProjectPaymentReceivedView, GetProjectPaymentReceivedView
@@ -31,6 +32,11 @@ urlpatterns = [
 		"departments/<int:dep>/set-manager/",
 		SetDepartmentManagerView.as_view({'put': 'update'}),
 		name="set-department-manager"
+	),
+	path(
+		"departments/<int:dep>/managers/",
+		ListDepartmentManagersView.as_view({'get': 'list'}),
+		name="department-managers"
 	),
 	path(
 		"departments/<int:pk>/projects/",

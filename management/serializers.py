@@ -11,6 +11,11 @@ class DepartmentSerializer(serializers.ModelSerializer):
 		read_only_fields = ["id", "created_at", "updated_at"]
 
 class ExpenseSerializer(serializers.ModelSerializer):
+	supplier_display = serializers.SerializerMethodField()
+
+	def get_supplier_display(self, obj):
+		return obj.supplier
+
 	class Meta:
 		model = Expense
 		fields = '__all__'
@@ -25,6 +30,11 @@ class ExpenseSerializer(serializers.ModelSerializer):
 		}
 
 class PaymentReceivedSerializer(serializers.ModelSerializer):
+	client_display = serializers.SerializerMethodField()
+
+	def get_client_display(self, obj):
+		return obj.project.client_name if obj.project else None
+
 	class Meta:
 		model = PaymentReceived
 		fields = '__all__'
