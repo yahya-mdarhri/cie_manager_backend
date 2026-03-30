@@ -1145,6 +1145,60 @@ class ListAllPaymentsReceivedView(viewsets.ViewSet):
 			status=status.HTTP_403_FORBIDDEN
 		)
 
+
+class ListAllFiltersView(viewsets.ViewSet):
+
+	def list(self, request):
+		user = request.user
+		if not (user.is_director() or user.is_department_manager()):
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+
+		departments = list(
+			Department.objects.order_by("name").values_list("name", flat=True).distinct()
+		)
+		coordinators = list(
+			Project.objects.exclude(coordinator__isnull=True)
+			.exclude(coordinator__exact="")
+			.order_by("coordinator")
+			.values_list("coordinator", flat=True)
+			.distinct()
+		)
+		expense_categories = list(
+			Expense.objects.exclude(category__isnull=True)
+			.exclude(category__exact="")
+			.order_by("category")
+			.values_list("category", flat=True)
+			.distinct()
+		)
+		payment_types = list(
+			PaymentReceived.objects.exclude(payment_type__isnull=True)
+			.exclude(payment_type__exact="")
+			.order_by("payment_type")
+			.values_list("payment_type", flat=True)
+			.distinct()
+		)
+		suppliers = list(
+			Supplier.objects.order_by("name").values_list("name", flat=True).distinct()
+		)
+		clients = list(
+			Client.objects.order_by("name").values_list("name", flat=True).distinct()
+		)
+
+		return Response(
+			{
+				"departments": departments,
+				"coordinators": coordinators,
+				"expense_categories": expense_categories,
+				"payment_types": payment_types,
+				"suppliers": suppliers,
+				"clients": clients,
+			},
+			status=status.HTTP_200_OK
+		)
+
 class ExecuteProjectStepView(viewsets.ViewSet):
 
 	def execute(self, request, dep=None, proj=None, step=None):

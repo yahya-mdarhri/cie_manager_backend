@@ -6,7 +6,7 @@ from .views import ListProjectExpensesView, CreateProjectExpenseView, GetProject
 from .views import ListProjectPaymentsReceivedView, CreateProjectPaymentReceivedView, GetProjectPaymentReceivedView
 from .views import ListActionLogsView, GetActionLogView
 from .views import ListProjectStepsView, CreateProjectStepView, GetProjectStepView, ExecuteProjectStepView
-from .views import ListAllProjectView, ListAllExpensesView, ListAllPaymentsReceivedView
+from .views import ListAllProjectView, ListAllExpensesView, ListAllPaymentsReceivedView, ListAllFiltersView
 from .views import DirectorDashboardView, DepartmentDashboardView
 from .views import ListClientsView, CreateClientView, GetClientView, GetClientTotalsView
 from .views import ListSuppliersView, CreateSupplierView, GetSupplierView, GetSupplierTotalsView
@@ -131,6 +131,10 @@ urlpatterns = [
 	path("all/payments/",
 		ListAllPaymentsReceivedView.as_view({'get': 'list'}),
 		name="all-payments"
+	),
+	path("all/filters/",
+		ListAllFiltersView.as_view({'get': 'list'}),
+		name="all-filters"
 	),
 
 	path("all/statistics/",
