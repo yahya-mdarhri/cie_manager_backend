@@ -560,8 +560,45 @@ class CreateProjectView(viewsets.ViewSet):
 		department , error_response = getDepartmentIfHasAccess(user, dep)
 		if error_response:
 			return error_response
+
+		data = request.data.copy()
+
+		def first_value(raw):
+			if isinstance(raw, (list, tuple)):
+				return raw[0] if raw else None
+			return raw
+
+		# Resolve coordinator sent as coordinator_user_id (frontend director flow)
+		coordinator_user_id = first_value(data.pop("coordinator_user_id", None))
+		if coordinator_user_id and not data.get("coordinator"):
+			try:
+				coordinator_user = User.objects.get(pk=coordinator_user_id)
+				full_name = f"{coordinator_user.first_name} {coordinator_user.last_name}".strip()
+				data["coordinator"] = full_name or coordinator_user.email or coordinator_user.username
+			except User.DoesNotExist:
+				return Response(
+					{"details": "Coordinator user not found."},
+					status=status.HTTP_404_NOT_FOUND
+				)
+
+		# Resolve client sent as master-data id (frontend sends field `client`)
+		client_ref = first_value(data.pop("client", None))
+		if client_ref and not data.get("client_name"):
+			try:
+				client = Client.objects.get(pk=client_ref)
+				data["client_name"] = client.name
+			except Client.DoesNotExist:
+				return Response(
+					{"details": "Client not found."},
+					status=status.HTTP_404_NOT_FOUND
+				)
+
+		# Some front versions may send these aliases; normalize and drop unknown keys
+		data.pop("client_id", None)
+		data.pop("main_supplier", None)
+
 		# Create the project
-		serializer = ProjectSerializer(data=request.data)
+		serializer = ProjectSerializer(data=data)
 		if serializer.is_valid():
 			serializer.save(department=department)
 			project = serializer.instance
