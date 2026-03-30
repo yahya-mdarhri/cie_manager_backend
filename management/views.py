@@ -2,11 +2,12 @@ import json
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from django.db.models import Q, Sum
 
 from accounts.permissions import has_permission
-from management.models import Department, Project, Expense, PaymentReceived, ActionLogs, ProjectSteps
+from management.models import Department, Project, Expense, PaymentReceived, ActionLogs, ProjectSteps, Client, Supplier
 from management.pagination import CustomPagination
-from management.serializers import DepartmentSerializer, ProjectSerializer, ExpenseSerializer, PaymentReceivedSerializer, ActionLogsSerializer, ProjectStepsSerializer
+from management.serializers import DepartmentSerializer, ProjectSerializer, ExpenseSerializer, PaymentReceivedSerializer, ActionLogsSerializer, ProjectStepsSerializer, ClientSerializer, SupplierSerializer
 
 User = get_user_model()
 
@@ -15,6 +16,123 @@ DEPARTMENT_NOT_FOUND  = {"details": "Department not found."}
 PROJECT_NOT_FOUND     = {"details": "Project not found."}
 EXPENSE_NOT_FOUND     = {"details": "Expense not found."}
 NOT_ALLOWED_TO = {"details": "You do not have permission to make this action."}
+CLIENT_NOT_FOUND = {"details": "Client not found."}
+SUPPLIER_NOT_FOUND = {"details": "Supplier not found."}
+
+
+def can_view_master_data(user):
+	return bool(user and user.is_authenticated)
+
+
+def get_paginator_with_requested_size(request):
+	paginator = CustomPagination()
+	requested_size = request.query_params.get("size") or request.query_params.get("page_size")
+	if requested_size:
+		try:
+			value = int(requested_size)
+			if value > 0:
+				paginator.page_size = min(value, paginator.max_page_size)
+		except (TypeError, ValueError):
+			pass
+	return paginator
+
+
+def getClient(pk):
+	try:
+		return Client.objects.get(pk=pk)
+	except Client.DoesNotExist:
+		return None
+
+
+def getSupplier(pk):
+	try:
+		return Supplier.objects.get(pk=pk)
+	except Supplier.DoesNotExist:
+		return None
+
+
+def serialize_project_for_master_data(project):
+	return {
+		"id": project.id,
+		"project_code": project.project_code,
+		"project_name": project.project_name,
+		"status": project.status,
+		"total_budget": float(project.total_budget or 0),
+		"department": project.department.name if project.department else None,
+		"department_id": project.department_id,
+	}
+
+
+def get_client_totals_payload(client):
+	projects = Project.objects.filter(client_name__iexact=client.name).select_related("department")
+	project_rows = []
+	total_revenue = 0
+	for project in projects:
+		project_total = project.payments_received.aggregate(total=Sum("amount")).get("total") or 0
+		total_revenue += project_total
+		project_rows.append(
+			{
+				"project_id": project.id,
+				"project_code": project.project_code,
+				"project_name": project.project_name,
+				"department": project.department.name if project.department else None,
+				"total_revenue": float(project_total),
+			}
+		)
+	return {
+		"total_revenue": float(total_revenue),
+		"projects": project_rows,
+	}
+
+
+def get_supplier_totals_payload(supplier):
+	projects = Project.objects.filter(expenses__supplier__iexact=supplier.name).distinct().select_related("department")
+	project_rows = []
+	total_expense = 0
+	for project in projects:
+		project_total = project.expenses.filter(supplier__iexact=supplier.name).aggregate(total=Sum("amount")).get("total") or 0
+		total_expense += project_total
+		project_rows.append(
+			{
+				"project_id": project.id,
+				"project_code": project.project_code,
+				"project_name": project.project_name,
+				"department": project.department.name if project.department else None,
+				"total_expense": float(project_total),
+			}
+		)
+	return {
+		"total_expense": float(total_expense),
+		"projects": project_rows,
+	}
+
+
+def serialize_client_with_metrics(client):
+	client_data = ClientSerializer(client).data
+	projects = Project.objects.filter(client_name__iexact=client.name).select_related("department")
+	total_revenue = 0
+	project_items = []
+	for project in projects:
+		project_items.append(serialize_project_for_master_data(project))
+		project_total = project.payments_received.aggregate(total=Sum("amount")).get("total") or 0
+		total_revenue += project_total
+	client_data["projects"] = project_items
+	client_data["total_revenue"] = float(total_revenue)
+	return client_data
+
+
+def serialize_supplier_with_metrics(supplier):
+	supplier_data = SupplierSerializer(supplier).data
+	projects = Project.objects.filter(expenses__supplier__iexact=supplier.name).distinct().select_related("department")
+	total_expense = 0
+	project_items = []
+	for project in projects:
+		project_items.append(serialize_project_for_master_data(project))
+		project_total = project.expenses.filter(supplier__iexact=supplier.name).aggregate(total=Sum("amount")).get("total") or 0
+		total_expense += project_total
+	supplier_data["projects"] = project_items
+	supplier_data["total_expense"] = float(total_expense)
+	return supplier_data
 
 def getDepartment(pk):
 	try:
@@ -955,3 +1073,263 @@ class DepartmentDashboardView(viewsets.ViewSet):
 		}
 		
 		return Response(dashboard_data, status=status.HTTP_200_OK)
+
+
+class ListClientsView(viewsets.ViewSet):
+
+	def list(self, request):
+		user = request.user
+		if not can_view_master_data(user):
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		clients = Client.objects.all()
+		q = request.query_params.get("q")
+		if q:
+			clients = clients.filter(
+				Q(name__icontains=q) | Q(registration_number__icontains=q)
+			)
+
+		paginator = get_paginator_with_requested_size(request)
+		page = paginator.paginate_queryset(clients, request)
+		serialized = [serialize_client_with_metrics(client) for client in page]
+		return paginator.get_paginated_response(serialized)
+
+
+class CreateClientView(viewsets.ViewSet):
+
+	def create(self, request):
+		user = request.user
+		if not has_permission(user):
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		serializer = ClientSerializer(data=request.data)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(
+				{"details": "Client created."},
+				status=status.HTTP_201_CREATED
+			)
+		return Response(
+			serializer.errors,
+			status=status.HTTP_400_BAD_REQUEST
+		)
+
+
+class GetClientView(viewsets.ViewSet):
+
+	def retrieve(self, request, pk=None):
+		user = request.user
+		if not can_view_master_data(user):
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		client = getClient(pk)
+		if not client:
+			return Response(
+				CLIENT_NOT_FOUND,
+				status=status.HTTP_404_NOT_FOUND
+			)
+		return Response(
+			serialize_client_with_metrics(client),
+			status=status.HTTP_200_OK
+		)
+
+	def update(self, request, pk=None):
+		user = request.user
+		if not has_permission(user):
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		client = getClient(pk)
+		if not client:
+			return Response(
+				CLIENT_NOT_FOUND,
+				status=status.HTTP_404_NOT_FOUND
+			)
+		serializer = ClientSerializer(client, data=request.data, partial=True)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(
+				{"details": "Client details updated."},
+				status=status.HTTP_200_OK
+			)
+		return Response(
+			serializer.errors,
+			status=status.HTTP_400_BAD_REQUEST
+		)
+
+	def destroy(self, request, pk=None):
+		user = request.user
+		if not has_permission(user):
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		client = getClient(pk)
+		if not client:
+			return Response(
+				CLIENT_NOT_FOUND,
+				status=status.HTTP_404_NOT_FOUND
+			)
+		client.delete()
+		return Response(
+			{"details": "Client deleted."},
+			status=status.HTTP_204_NO_CONTENT
+		)
+
+
+class GetClientTotalsView(viewsets.ViewSet):
+
+	def retrieve(self, request, pk=None):
+		user = request.user
+		if not can_view_master_data(user):
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		client = getClient(pk)
+		if not client:
+			return Response(
+				CLIENT_NOT_FOUND,
+				status=status.HTTP_404_NOT_FOUND
+			)
+		return Response(
+			get_client_totals_payload(client),
+			status=status.HTTP_200_OK
+		)
+
+
+class ListSuppliersView(viewsets.ViewSet):
+
+	def list(self, request):
+		user = request.user
+		if not can_view_master_data(user):
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		suppliers = Supplier.objects.all()
+		q = request.query_params.get("q")
+		if q:
+			suppliers = suppliers.filter(
+				Q(name__icontains=q) | Q(registration_number__icontains=q)
+			)
+
+		paginator = get_paginator_with_requested_size(request)
+		page = paginator.paginate_queryset(suppliers, request)
+		serialized = [serialize_supplier_with_metrics(supplier) for supplier in page]
+		return paginator.get_paginated_response(serialized)
+
+
+class CreateSupplierView(viewsets.ViewSet):
+
+	def create(self, request):
+		user = request.user
+		if not has_permission(user):
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		serializer = SupplierSerializer(data=request.data)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(
+				{"details": "Supplier created."},
+				status=status.HTTP_201_CREATED
+			)
+		return Response(
+			serializer.errors,
+			status=status.HTTP_400_BAD_REQUEST
+		)
+
+
+class GetSupplierView(viewsets.ViewSet):
+
+	def retrieve(self, request, pk=None):
+		user = request.user
+		if not can_view_master_data(user):
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		supplier = getSupplier(pk)
+		if not supplier:
+			return Response(
+				SUPPLIER_NOT_FOUND,
+				status=status.HTTP_404_NOT_FOUND
+			)
+		return Response(
+			serialize_supplier_with_metrics(supplier),
+			status=status.HTTP_200_OK
+		)
+
+	def update(self, request, pk=None):
+		user = request.user
+		if not has_permission(user):
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		supplier = getSupplier(pk)
+		if not supplier:
+			return Response(
+				SUPPLIER_NOT_FOUND,
+				status=status.HTTP_404_NOT_FOUND
+			)
+		serializer = SupplierSerializer(supplier, data=request.data, partial=True)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(
+				{"details": "Supplier details updated."},
+				status=status.HTTP_200_OK
+			)
+		return Response(
+			serializer.errors,
+			status=status.HTTP_400_BAD_REQUEST
+		)
+
+	def destroy(self, request, pk=None):
+		user = request.user
+		if not has_permission(user):
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		supplier = getSupplier(pk)
+		if not supplier:
+			return Response(
+				SUPPLIER_NOT_FOUND,
+				status=status.HTTP_404_NOT_FOUND
+			)
+		supplier.delete()
+		return Response(
+			{"details": "Supplier deleted."},
+			status=status.HTTP_204_NO_CONTENT
+		)
+
+
+class GetSupplierTotalsView(viewsets.ViewSet):
+
+	def retrieve(self, request, pk=None):
+		user = request.user
+		if not can_view_master_data(user):
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		supplier = getSupplier(pk)
+		if not supplier:
+			return Response(
+				SUPPLIER_NOT_FOUND,
+				status=status.HTTP_404_NOT_FOUND
+			)
+		return Response(
+			get_supplier_totals_payload(supplier),
+			status=status.HTTP_200_OK
+		)

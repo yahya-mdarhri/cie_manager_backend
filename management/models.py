@@ -211,3 +211,35 @@ class ProjectSteps(models.Model):
 		ordering = ["-created_at"]
 		verbose_name = "Project Step"
 		verbose_name_plural = "Project Steps"
+
+
+class Client(models.Model):
+	name = models.CharField(max_length=255)
+	registration_number = models.CharField(max_length=100, unique=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		db_table = "clients"
+		ordering = ["name"]
+		verbose_name = "Client"
+		verbose_name_plural = "Clients"
+
+	def __str__(self):
+		return f"{self.name} ({self.registration_number})"
+
+
+class Supplier(models.Model):
+	name = models.CharField(max_length=255)
+	registration_number = models.CharField(max_length=100, unique=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		db_table = "suppliers"
+		ordering = ["name"]
+		verbose_name = "Supplier"
+		verbose_name_plural = "Suppliers"
+
+	def __str__(self):
+		return f"{self.name} ({self.registration_number})"

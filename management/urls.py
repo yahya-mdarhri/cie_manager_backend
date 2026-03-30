@@ -7,6 +7,8 @@ from .views import ListActionLogsView, GetActionLogView
 from .views import ListProjectStepsView, CreateProjectStepView, GetProjectStepView, ExecuteProjectStepView
 from .views import ListAllProjectView, ListAllExpensesView, ListAllPaymentsReceivedView
 from .views import DirectorDashboardView, DepartmentDashboardView
+from .views import ListClientsView, CreateClientView, GetClientView, GetClientTotalsView
+from .views import ListSuppliersView, CreateSupplierView, GetSupplierView, GetSupplierTotalsView
 
 
 urlpatterns = [
@@ -131,5 +133,45 @@ urlpatterns = [
 	path("departments/<int:dep>/statistics/",
 		DepartmentDashboardView.as_view({'get': 'retrieve'}),
 		name="department-statistics"
+	),
+	path(
+		"clients/",
+		ListClientsView.as_view({'get': 'list'}),
+		name="clients"
+	),
+	path(
+		"clients/create/",
+		CreateClientView.as_view({'post': 'create'}),
+		name="create-client"
+	),
+	path(
+		"clients/<int:pk>/",
+		GetClientView.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
+		name="client-detail"
+	),
+	path(
+		"clients/<int:pk>/totals/",
+		GetClientTotalsView.as_view({'get': 'retrieve'}),
+		name="client-totals"
+	),
+	path(
+		"suppliers/",
+		ListSuppliersView.as_view({'get': 'list'}),
+		name="suppliers"
+	),
+	path(
+		"suppliers/create/",
+		CreateSupplierView.as_view({'post': 'create'}),
+		name="create-supplier"
+	),
+	path(
+		"suppliers/<int:pk>/",
+		GetSupplierView.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
+		name="supplier-detail"
+	),
+	path(
+		"suppliers/<int:pk>/totals/",
+		GetSupplierTotalsView.as_view({'get': 'retrieve'}),
+		name="supplier-totals"
 	),
 ]

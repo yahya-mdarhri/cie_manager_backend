@@ -158,3 +158,29 @@ class ProjectStepsSerializer(serializers.ModelSerializer):
 		if start and end and start > end:
 			raise serializers.ValidationError("End date must be after start date.")
 		return data
+
+
+class ClientSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Client
+		fields = ["id", "name", "registration_number", "created_at", "updated_at"]
+		extra_kwargs = {
+			"id": {"read_only": True},
+			"created_at": {"read_only": True},
+			"updated_at": {"read_only": True},
+			"name": {"required": True},
+			"registration_number": {"required": True},
+		}
+
+
+class SupplierSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Supplier
+		fields = ["id", "name", "registration_number", "created_at", "updated_at"]
+		extra_kwargs = {
+			"id": {"read_only": True},
+			"created_at": {"read_only": True},
+			"updated_at": {"read_only": True},
+			"name": {"required": True},
+			"registration_number": {"required": True},
+		}
