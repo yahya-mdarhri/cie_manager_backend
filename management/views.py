@@ -600,10 +600,12 @@ class CreateProjectView(viewsets.ViewSet):
 
 		# Resolve client sent as master-data id (frontend sends field `client`)
 		client_ref = normalized_int(data.pop("client", None))
-		if client_ref and not data.get("client_name"):
+		if client_ref:
 			try:
 				client = Client.objects.get(pk=client_ref)
-				data["client_name"] = client.name
+				data["client"] = client.id
+				if not data.get("client_name"):
+					data["client_name"] = client.name
 			except Client.DoesNotExist:
 				return Response(
 					{"details": "Client not found."},
@@ -612,6 +614,22 @@ class CreateProjectView(viewsets.ViewSet):
 		elif first_value(request.data.get("client")) and not data.get("client_name"):
 			return Response(
 				{"details": "Invalid client id."},
+				status=status.HTTP_400_BAD_REQUEST
+			)
+		elif data.get("client_name") and not data.get("client"):
+			client_name = str(data.get("client_name")).strip()
+			client = Client.objects.filter(name__iexact=client_name).first()
+			if client:
+				data["client"] = client.id
+				data["client_name"] = client.name
+			else:
+				return Response(
+					{"details": "Client is required and must exist in master data."},
+					status=status.HTTP_400_BAD_REQUEST
+				)
+		elif not data.get("client"):
+			return Response(
+				{"details": "Client is required."},
 				status=status.HTTP_400_BAD_REQUEST
 			)
 

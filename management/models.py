@@ -48,6 +48,7 @@ class Project(models.Model):
 	coordinator = models.CharField(max_length=100)
 	project_nature = models.CharField(max_length=20, choices=ProjectNature.choices)
 	department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="projects")
+	client = models.ForeignKey("Client", on_delete=models.PROTECT, related_name="projects")
 	end_date = models.DateField()
 
 	total_budget = models.DecimalField(max_digits=MAX_DIGITS, decimal_places=DECIMAL_PLACES, default=0)

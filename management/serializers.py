@@ -78,6 +78,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 			"project_name": {"required": True},
 			"coordinator": {"required": True},
 			"project_nature": {"required": True},
+			"client": {"required": True},
 			"end_date": {"required": True},
 			"total_budget": {"required": True},
 			"client_name": {"required": False},
