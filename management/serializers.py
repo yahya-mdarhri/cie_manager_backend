@@ -1,14 +1,29 @@
 from datetime import datetime, timezone
 from rest_framework import serializers
+from accounts.models import User
 from .models import *
 
 class DepartmentSerializer(serializers.ModelSerializer):
+	managers = serializers.SerializerMethodField()
+
+	def get_managers(self, obj):
+		managers = obj.managers.filter(role=User.Role.DEPARTMENT_MANAGER).order_by("id")
+		return [
+			{
+				"id": manager.id,
+				"first_name": manager.first_name,
+				"last_name": manager.last_name,
+				"email": manager.email,
+			}
+			for manager in managers
+		]
+
 	class Meta:
 		model = Department
 		fields = [
-			"id", "name", "description", "created_at", "updated_at"
+			"id", "name", "description", "managers", "created_at", "updated_at"
 		]
-		read_only_fields = ["id", "created_at", "updated_at"]
+		read_only_fields = ["id", "managers", "created_at", "updated_at"]
 
 class ExpenseSerializer(serializers.ModelSerializer):
 	supplier_display = serializers.SerializerMethodField()

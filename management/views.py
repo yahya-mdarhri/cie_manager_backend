@@ -321,10 +321,81 @@ class GetDepartmentView(viewsets.ViewSet):
 				NO_ACCESS_TO_RESOURCE,
 				status=status.HTTP_403_FORBIDDEN
 			)
+		data = request.data.copy()
+		manager_ids_raw = data.pop("manager_ids", None)
+
+		def normalize_manager_ids(raw_value):
+			if raw_value is None:
+				return None
+			items = raw_value if isinstance(raw_value, (list, tuple)) else [raw_value]
+			normalized = []
+			for item in items:
+				if item is None:
+					continue
+				if isinstance(item, (list, tuple)):
+					normalized.extend(item)
+					continue
+				text = str(item).strip()
+				if not text:
+					continue
+				if text.startswith("[") and text.endswith("]"):
+					try:
+						parsed = json.loads(text)
+						if isinstance(parsed, list):
+							normalized.extend(parsed)
+							continue
+					except (TypeError, ValueError):
+						pass
+				if "," in text:
+					normalized.extend(part.strip() for part in text.split(",") if part.strip())
+				else:
+					normalized.append(text)
+
+			result = []
+			for value in normalized:
+				try:
+					result.append(int(value))
+				except (TypeError, ValueError):
+					continue
+			return list(dict.fromkeys(result))
+
+		manager_ids = normalize_manager_ids(manager_ids_raw)
+		if manager_ids is not None and not user.is_director():
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+
 		#Check if the provided details are valid, if yes save them, otherwise no
-		serializer = DepartmentSerializer(department, data=request.data, partial=True)
+		serializer = DepartmentSerializer(department, data=data, partial=True)
 		if serializer.is_valid():
 			serializer.save()
+			if manager_ids is not None:
+				selected_users = User.objects.filter(id__in=manager_ids)
+				selected_ids = set(selected_users.values_list("id", flat=True))
+				missing_ids = set(manager_ids) - selected_ids
+				if missing_ids:
+					return Response(
+						{"details": f"Managers not found: {sorted(missing_ids)}"},
+						status=status.HTTP_404_NOT_FOUND
+					)
+
+				for manager in selected_users:
+					if manager.is_director():
+						return Response(
+							{"details": "A director cannot be assigned as department manager."},
+							status=status.HTTP_400_BAD_REQUEST
+						)
+
+				department.managers.filter(role=User.Role.DEPARTMENT_MANAGER).exclude(id__in=manager_ids).update(
+					role=User.Role.USER,
+					department=None,
+				)
+				for manager in selected_users:
+					manager.role = User.Role.DEPARTMENT_MANAGER
+					manager.department = department
+					manager.save(update_fields=["role", "department"])
+
 			return Response(
 				{"details": "Department details updated."},
 				status=status.HTTP_200_OK
