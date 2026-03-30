@@ -568,8 +568,20 @@ class CreateProjectView(viewsets.ViewSet):
 				return raw[0] if raw else None
 			return raw
 
+		def normalized_int(raw):
+			value = first_value(raw)
+			if value is None:
+				return None
+			text = str(value).strip()
+			if not text:
+				return None
+			try:
+				return int(text)
+			except (TypeError, ValueError):
+				return None
+
 		# Resolve coordinator sent as coordinator_user_id (frontend director flow)
-		coordinator_user_id = first_value(data.pop("coordinator_user_id", None))
+		coordinator_user_id = normalized_int(data.pop("coordinator_user_id", None))
 		if coordinator_user_id and not data.get("coordinator"):
 			try:
 				coordinator_user = User.objects.get(pk=coordinator_user_id)
@@ -580,9 +592,14 @@ class CreateProjectView(viewsets.ViewSet):
 					{"details": "Coordinator user not found."},
 					status=status.HTTP_404_NOT_FOUND
 				)
+		elif first_value(request.data.get("coordinator_user_id")) and not data.get("coordinator"):
+			return Response(
+				{"details": "Invalid coordinator user id."},
+				status=status.HTTP_400_BAD_REQUEST
+			)
 
 		# Resolve client sent as master-data id (frontend sends field `client`)
-		client_ref = first_value(data.pop("client", None))
+		client_ref = normalized_int(data.pop("client", None))
 		if client_ref and not data.get("client_name"):
 			try:
 				client = Client.objects.get(pk=client_ref)
@@ -592,6 +609,11 @@ class CreateProjectView(viewsets.ViewSet):
 					{"details": "Client not found."},
 					status=status.HTTP_404_NOT_FOUND
 				)
+		elif first_value(request.data.get("client")) and not data.get("client_name"):
+			return Response(
+				{"details": "Invalid client id."},
+				status=status.HTTP_400_BAD_REQUEST
+			)
 
 		# Some front versions may send these aliases; normalize and drop unknown keys
 		data.pop("client_id", None)
@@ -603,12 +625,18 @@ class CreateProjectView(viewsets.ViewSet):
 			serializer.save(department=department)
 			project = serializer.instance
 			if "jalons" in request.data:
-				steps_data = request.data["jalons"]
-				step_json = json.loads(steps_data)
-				for step in step_json["jalons"]:
-					step_serializer = ProjectStepsSerializer(data=step)
-					if step_serializer.is_valid():
-						step_serializer.save(project=project)
+				try:
+					steps_data = request.data["jalons"]
+					step_json = json.loads(steps_data)
+					for step in step_json.get("jalons", []):
+						step_serializer = ProjectStepsSerializer(data=step)
+						if step_serializer.is_valid():
+							step_serializer.save(project=project)
+				except (TypeError, ValueError, AttributeError):
+					return Response(
+						{"details": "Invalid jalons payload."},
+						status=status.HTTP_400_BAD_REQUEST
+					)
 			return Response(
 				{"details": "Project created."},
 				status=status.HTTP_201_CREATED
