@@ -635,6 +635,7 @@ class CreateProjectExpenseView(viewsets.ViewSet):
 				)
 		data["amount"] = normalize_amount(data.get("amount"))
 		data["category"] = normalize_expense_category(data.get("category"))
+		data["project"] = project.pk
 		if data.get("amount") is None:
 			return Response(
 				{"details": "Amount is required and must be a valid number."},
@@ -797,6 +798,7 @@ class CreateProjectPaymentReceivedView(viewsets.ViewSet):
 				)
 		data["amount"] = normalize_amount(data.get("amount"))
 		data["payment_type"] = normalize_payment_type(data.get("payment_type"))
+		data["project"] = project.pk
 		if not data.get("payment_reference"):
 			data["payment_reference"] = "REF"
 		if data.get("amount") is None:
