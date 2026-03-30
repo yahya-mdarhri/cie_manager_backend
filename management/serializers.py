@@ -74,7 +74,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 		model = Project
 		fields = '__all__'
 		extra_kwargs = {
-			"project_code": {"required": True},
+			"project_code": {"required": False},
 			"project_name": {"required": True},
 			"coordinator": {"required": True},
 			"project_nature": {"required": True},

@@ -1,10 +1,14 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+import secrets
+import string
 
 User = get_user_model()
 
 MAX_DIGITS = 30
 DECIMAL_PLACES = 2
+PROJECT_CODE_ALPHABET = string.ascii_uppercase + string.digits
+PROJECT_CODE_LENGTH = 6
 
 
 class Department(models.Model):
@@ -96,7 +100,19 @@ class Project(models.Model):
 		verbose_name = "Project"
 		verbose_name_plural = "Projects"
 
+	@staticmethod
+	def generate_project_code():
+		return "".join(secrets.choice(PROJECT_CODE_ALPHABET) for _ in range(PROJECT_CODE_LENGTH))
+
 	def save(self, *args, **kwargs):
+		if not self.project_code:
+			for _ in range(20):
+				candidate = self.generate_project_code()
+				if not Project.objects.filter(project_code=candidate).exists():
+					self.project_code = candidate
+					break
+			if not self.project_code:
+				raise ValueError("Unable to generate a unique project code.")
 		# auto calc remaining budget
 		self.remaining_budget = self.total_budget - self.committed_budget
 		super().save(*args, **kwargs)

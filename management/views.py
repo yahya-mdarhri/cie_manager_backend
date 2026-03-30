@@ -204,6 +204,30 @@ def normalize_payment_type(value):
 	}
 	return mapping.get(key, value)
 
+
+def normalize_project_status(value):
+	if not value:
+		return value
+	key = str(value).strip().lower()
+	mapping = {
+		"in progress": Project.Status.IN_PROGRESS,
+		"in_progress": Project.Status.IN_PROGRESS,
+		"active": Project.Status.IN_PROGRESS,
+		"running": Project.Status.IN_PROGRESS,
+		"paused": Project.Status.PAUSED,
+		"pause": Project.Status.PAUSED,
+		"on hold": Project.Status.PAUSED,
+		"on_hold": Project.Status.PAUSED,
+		"completed": Project.Status.COMPLETED,
+		"complete": Project.Status.COMPLETED,
+		"finished": Project.Status.COMPLETED,
+		"done": Project.Status.COMPLETED,
+		"cancelled": Project.Status.CANCELLED,
+		"canceled": Project.Status.CANCELLED,
+		"cancel": Project.Status.CANCELLED,
+	}
+	return mapping.get(key, value)
+
 def getDepartment(pk):
 	try:
 		return Department.objects.get(pk=pk)
@@ -516,7 +540,10 @@ class GetProjectView(viewsets.ViewSet):
 				PROJECT_NOT_FOUND,
 				status=status.HTTP_404_NOT_FOUND
 			)
-		serializer = ProjectSerializer(project, data=request.data, partial=True)
+		data = request.data.copy()
+		if "status" in data:
+			data["status"] = normalize_project_status(data.get("status"))
+		serializer = ProjectSerializer(project, data=data, partial=True)
 		# old_data = serializer.data
 		#Check if the provided details are valid, if yes save them, otherwise no
 		if serializer.is_valid():

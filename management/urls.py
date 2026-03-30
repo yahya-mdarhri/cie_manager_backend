@@ -46,7 +46,7 @@ urlpatterns = [
 	),
 	path(
 		"departments/<int:dep>/projects/<int:proj>/",
-		GetProjectView.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
+		GetProjectView.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'update', 'delete': 'destroy'}),
 		name="department-project-details"
 	),
 	path(
