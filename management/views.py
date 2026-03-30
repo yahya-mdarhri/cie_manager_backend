@@ -64,6 +64,21 @@ def serialize_project_for_master_data(project):
 	}
 
 
+def serialize_project_for_records(project):
+	if not project:
+		return None
+	return {
+		"id": project.id,
+		"project_code": project.project_code,
+		"project_name": project.project_name,
+		"coordinator": project.coordinator,
+		"department": {
+			"id": project.department.id,
+			"name": project.department.name,
+		} if project.department else None,
+	}
+
+
 def get_client_totals_payload(client):
 	projects = Project.objects.filter(client_name__iexact=client.name).select_related("department")
 	project_rows = []
@@ -1099,10 +1114,13 @@ class ListAllExpensesView(viewsets.ViewSet):
 		# Check if the user has access to all expenses
 		if user.is_director():
 			paginator = CustomPagination()
-			expenses = Expense.objects.all()
+			expenses = Expense.objects.select_related("project", "project__department").all()
 			expenses = paginator.paginate_queryset(expenses, request)
 			serializer = ExpenseSerializer(expenses, many=True)
-			return paginator.get_paginated_response(serializer.data)
+			data = serializer.data
+			for idx, expense in enumerate(expenses):
+				data[idx]["project"] = serialize_project_for_records(expense.project)
+			return paginator.get_paginated_response(data)
 		return Response(
 			NO_ACCESS_TO_RESOURCE,
 			status=status.HTTP_403_FORBIDDEN
@@ -1115,10 +1133,13 @@ class ListAllPaymentsReceivedView(viewsets.ViewSet):
 		# Check if the user has access to all payments received
 		if user.is_director():
 			paginator = CustomPagination()
-			payments_received = PaymentReceived.objects.all()
+			payments_received = PaymentReceived.objects.select_related("project", "project__department").all()
 			payments_received = paginator.paginate_queryset(payments_received, request)
 			serializer = PaymentReceivedSerializer(payments_received, many=True)
-			return paginator.get_paginated_response(serializer.data)
+			data = serializer.data
+			for idx, payment in enumerate(payments_received):
+				data[idx]["project"] = serialize_project_for_records(payment.project)
+			return paginator.get_paginated_response(data)
 		return Response(
 			NO_ACCESS_TO_RESOURCE,
 			status=status.HTTP_403_FORBIDDEN
