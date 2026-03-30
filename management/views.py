@@ -1186,6 +1186,129 @@ class DepartmentDashboardView(viewsets.ViewSet):
 		return Response(dashboard_data, status=status.HTTP_200_OK)
 
 
+class ListManagementUsersView(viewsets.ViewSet):
+
+	def list(self, request):
+		user = request.user
+		if not user.is_director():
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		users = User.objects.all().order_by("id")
+		role = request.query_params.get("role")
+		if role:
+			users = users.filter(role=role)
+
+		paginator = get_paginator_with_requested_size(request)
+		users = paginator.paginate_queryset(users, request)
+		serializer = UserSerializer(users, many=True)
+		return paginator.get_paginated_response(serializer.data)
+
+	def create(self, request):
+		user = request.user
+		if not user.is_director():
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+
+		data = request.data.copy()
+		password = data.pop("password", None)
+
+		serializer = UserSerializer(data=data)
+		if serializer.is_valid():
+			new_user = serializer.save()
+			if password:
+				new_user.set_password(password)
+			else:
+				new_user.set_unusable_password()
+			new_user.save(update_fields=["password"])
+			return Response(UserSerializer(new_user).data, status=status.HTTP_201_CREATED)
+		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CreateManagementUserView(viewsets.ViewSet):
+
+	def create(self, request):
+		user = request.user
+		if not user.is_director():
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+
+		data = request.data.copy()
+		password = data.pop("password", None)
+
+		serializer = UserSerializer(data=data)
+		if serializer.is_valid():
+			new_user = serializer.save()
+			if password:
+				new_user.set_password(password)
+			else:
+				new_user.set_unusable_password()
+			new_user.save(update_fields=["password"])
+			return Response(UserSerializer(new_user).data, status=status.HTTP_201_CREATED)
+		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ManagementUserDetailView(viewsets.ViewSet):
+
+	def _get_user(self, pk):
+		try:
+			return User.objects.get(pk=pk)
+		except User.DoesNotExist:
+			return None
+
+	def retrieve(self, request, pk=None):
+		user = request.user
+		if not user.is_director():
+			return Response(
+				NO_ACCESS_TO_RESOURCE,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		target = self._get_user(pk)
+		if not target:
+			return Response({"details": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+		return Response(UserSerializer(target).data, status=status.HTTP_200_OK)
+
+	def update(self, request, pk=None):
+		user = request.user
+		if not user.is_director():
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		target = self._get_user(pk)
+		if not target:
+			return Response({"details": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+		data = request.data.copy()
+		password = data.pop("password", None)
+		serializer = UserSerializer(target, data=data, partial=True)
+		if serializer.is_valid():
+			updated = serializer.save()
+			if password:
+				updated.set_password(password)
+				updated.save(update_fields=["password"])
+			return Response(UserSerializer(updated).data, status=status.HTTP_200_OK)
+		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+	def destroy(self, request, pk=None):
+		user = request.user
+		if not user.is_director():
+			return Response(
+				NOT_ALLOWED_TO,
+				status=status.HTTP_403_FORBIDDEN
+			)
+		target = self._get_user(pk)
+		if not target:
+			return Response({"details": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+		target.delete()
+		return Response({"details": "User deleted."}, status=status.HTTP_204_NO_CONTENT)
+
+
 class ListClientsView(viewsets.ViewSet):
 
 	def list(self, request):

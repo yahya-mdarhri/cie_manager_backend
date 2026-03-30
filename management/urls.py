@@ -10,6 +10,7 @@ from .views import ListAllProjectView, ListAllExpensesView, ListAllPaymentsRecei
 from .views import DirectorDashboardView, DepartmentDashboardView
 from .views import ListClientsView, CreateClientView, GetClientView, GetClientTotalsView
 from .views import ListSuppliersView, CreateSupplierView, GetSupplierView, GetSupplierTotalsView
+from .views import ListManagementUsersView, CreateManagementUserView, ManagementUserDetailView
 
 
 urlpatterns = [
@@ -179,5 +180,15 @@ urlpatterns = [
 		"suppliers/<int:pk>/totals/",
 		GetSupplierTotalsView.as_view({'get': 'retrieve'}),
 		name="supplier-totals"
+	),
+	path(
+		"users/",
+		ListManagementUsersView.as_view({'get': 'list', 'post': 'create'}),
+		name="management-users"
+	),
+	path(
+		"users/<int:pk>/",
+		ManagementUserDetailView.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
+		name="management-user-detail"
 	),
 ]
