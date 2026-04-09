@@ -9,7 +9,7 @@ from accounts.permissions import has_permission
 from accounts.serializers import UserSerializer
 from management.models import Department, Project, Expense, PaymentReceived, ActionLogs, ProjectSteps, Client, Supplier
 from management.pagination import CustomPagination
-from management.serializers import DepartmentSerializer, ProjectSerializer, ExpenseSerializer, PaymentReceivedSerializer, ActionLogsSerializer, ProjectStepsSerializer, ClientSerializer, SupplierSerializer, ProjectListSerializer
+from management.serializers import DepartmentSerializer, ProjectSerializer, ExpenseSerializer, PaymentReceivedSerializer, ActionLogsSerializer, ProjectStepsSerializer, ClientSerializer, SupplierSerializer, ProjectDocumentSerializer, ProjectListSerializer
 
 User = get_user_model()
 

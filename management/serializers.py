@@ -216,3 +216,9 @@ class SupplierSerializer(serializers.ModelSerializer):
 			"name": {"required": True},
 			"registration_number": {"required": True},
 		}
+
+
+class ProjectDocumentSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Project
+		fields = ["id", "contract_documents"]
