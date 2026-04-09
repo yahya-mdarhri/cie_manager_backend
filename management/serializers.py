@@ -152,6 +152,12 @@ class ProjectSerializer(serializers.ModelSerializer):
 				raise serializers.ValidationError(f"{field.replace('_', ' ')} must be non-negative.")
 
 
+class ProjectListSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Project
+		fields = ["id", "project_code", "project_name", "client_name", "total_budget", "end_date", "created_at"]
+
+
 class ActionLogsSerializer(serializers.ModelSerializer):
 	content_type = serializers.SerializerMethodField()
 
